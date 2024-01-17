@@ -17,4 +17,6 @@ public class CashierDTO
             return name;
         }
     }
+    public List<OrderDTO> Orders { get; set; }
+
 }

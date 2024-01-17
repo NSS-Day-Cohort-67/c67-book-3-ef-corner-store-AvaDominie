@@ -17,4 +17,5 @@ public class Cashier
             return name;
         }
     }
+    public List<Order> Orders { get; set; }
 }

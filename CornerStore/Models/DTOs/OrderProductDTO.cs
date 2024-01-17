@@ -13,5 +13,4 @@ public class OrderProductDTO
     public OrderDTO Order { get; set; }
     [Required]
     public int Quantity { get; set; }
-
 }

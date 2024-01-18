@@ -107,25 +107,6 @@ app.MapGet("/api/cashiers", (CornerStoreDbContext db) =>
 
 
 // get all products
-// app.MapGet("/api/products", (CornerStoreDbContext db) =>
-// {
-//     return db.Products
-//     // allows access to categories
-//     .Include(c => c.Category)
-//     .Select(p => new ProductDTO
-//     {
-//         Id = p.Id,
-//         ProductName = p.ProductName,
-//         Price = p.Price,
-//         Brand = p.Brand,
-//         CategoryId = p.CategoryId,
-//         Category = new CategoryDTO
-//         {
-//             Id = p.Category.Id,
-//             CategoryName = p.Category.CategoryName
-//         }
-//     }).ToList();
-// });
 app.MapGet("/api/products", (CornerStoreDbContext db, string search) =>
 {
     string lowerSearch = search.ToLower();
@@ -148,8 +129,6 @@ app.MapGet("/api/products", (CornerStoreDbContext db, string search) =>
         }
     }).ToList();
 });
-
-
 
 
 // add a product
@@ -184,11 +163,150 @@ app.MapPut("/api/products/{id}", (CornerStoreDbContext db, int id, ProductDTO pr
 // order
 
 
+// get order details
+app.MapGet("/api/orderDetail/{id}", (CornerStoreDbContext db, int id) =>
+{
+    return db.Orders
+    // allows access to cashiers
+    .Include(o => o.Cashier)
+    // allows access to order products
+    .Include(o => o.OrderProducts)
+    // allows access to products
+        .ThenInclude(op => op.Product)
+    .Where(o => o.Id == id)
+    .Select(o => new OrderDTO
+    {
+        Id = o.Id,
+        CashierId = o.CashierId,
+        // access CashierId of Cashiers
+        Cashier = new CashierDTO
+        {
+            Id = o.Cashier.Id,
+            FirstName = o.Cashier.FirstName,
+            LastName = o.Cashier.LastName
+        },
+        PaidOnDate = o.PaidOnDate,
+        OrderProducts = o.OrderProducts.Select(op => new OrderProductDTO
+        {
+            Id = op.Id,
+            ProductId = op.ProductId,
+            Product = new ProductDTO
+            {
+                Id = op.Product.Id,
+                ProductName = op.Product.ProductName,
+                Price = op.Product.Price,
+                Brand = op.Product.Brand,
+                CategoryId = op.Product.CategoryId,
+                Category = new CategoryDTO
+                {
+                    Id = op.Product.Category.Id,
+                    CategoryName = op.Product.Category.CategoryName
+                }
+            },
+            OrderId = op.OrderId,
+            Quantity = op.Quantity
+        }).ToList()
+    }).ToList();
+});
 
 
 
 
+// get all orders by orderDate param
+app.MapGet("/api/orders", (CornerStoreDbContext db, string orderDate) =>
+{
+    IQueryable<Order> orders = db.Orders;
 
+    if (!string.IsNullOrEmpty(orderDate))
+    {
+        DateTime parsedDate;
+        if (!DateTime.TryParse(orderDate, out parsedDate))
+        {
+            throw new ArgumentException($"Invalid date format: {orderDate}. Expected format: yyyy-MM-dd");
+        }
+
+        orders = orders.Where(o => o.PaidOnDate.Date == parsedDate.Date);
+    }
+
+    return orders
+        .Include(o => o.Cashier)
+        .Include(o => o.OrderProducts)
+        .ThenInclude(op => op.Product)
+        .Select(o => new OrderDTO
+        {
+            Id = o.Id,
+            CashierId = o.CashierId,
+            Cashier = new CashierDTO
+            {
+                Id = o.Cashier.Id,
+                FirstName = o.Cashier.FirstName,
+                LastName = o.Cashier.LastName
+            },
+            PaidOnDate = o.PaidOnDate,
+            OrderProducts = o.OrderProducts.Select(op => new OrderProductDTO
+            {
+                Id = op.Id,
+                ProductId = op.ProductId,
+                Product = new ProductDTO
+                {
+                    Id = op.Product.Id,
+                    ProductName = op.Product.ProductName,
+                    Price = op.Product.Price,
+                    Brand = op.Product.Brand,
+                    CategoryId = op.Product.CategoryId,
+                    Category = new CategoryDTO
+                    {
+                        Id = op.Product.Category.Id,
+                        CategoryName = op.Product.Category.CategoryName
+                    }
+                },
+                OrderId = op.OrderId,
+                Quantity = op.Quantity
+            }).ToList()
+        }).ToList();
+});
+
+
+// delete order
+app.MapDelete("/api/order/{id}", (CornerStoreDbContext db, int id) =>
+{
+    Order order = db.Orders.SingleOrDefault(order => order.Id == id);
+    if (order == null)
+    {
+        return Results.NotFound();
+    }
+    db.Orders.Remove(order);
+    db.SaveChanges();
+    return Results.NoContent();
+});
+
+
+// add order
+// app.MapPost("/api/orders", (CornerStoreDbContext db, Order order) =>
+// {
+//     db.Orders.Add(order);
+//     db.SaveChanges();
+//     return Results.Created($"/api/orders/{order.Id}", order);
+// });
+app.MapPost("/api/orders", (CornerStoreDbContext db, OrderDTO orderDto) =>
+{
+    var order = new Order
+    {
+        CashierId = orderDto.CashierId,
+        PaidOnDate = orderDto.PaidOnDate,
+        OrderProducts = orderDto.OrderProducts.Select(op => new OrderProduct
+        {
+            ProductId = op.ProductId,
+            Quantity = op.Quantity
+        }).ToList(),
+        Cashier = db.Cashiers.Find(orderDto.CashierId)
+    };
+
+    db.Orders.Add(order);
+    db.SaveChanges();
+
+    return Results.Created($"/api/orders/{order.Id}", order);
+});
 
 
 
